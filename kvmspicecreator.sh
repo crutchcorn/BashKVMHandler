@@ -401,7 +401,7 @@ or other application using the libvirt API.
     </disk>
     <disk type='file' device='cdrom'>
       <driver name='qemu' type='raw' cache='none'/>
-      <source file='${DOWNLOAD_DIRECTORY}/windows7.iso'/>
+      <source file='${DOWNLOAD_DIRECTORY}/../windows7.iso'/>
       <target dev='hda' bus='ide'/>
       <readonly/>
       <address type='drive' controller='0' bus='0' unit='0'/>
