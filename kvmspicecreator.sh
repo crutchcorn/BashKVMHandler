@@ -13,7 +13,6 @@
 
 SCRIPT_VERSION="v0.1 (2015-05-07)"
 
-DISK_IMAGE_NAME=${WINDOWS_NAME}"_raw_disk.img"
 
 # check for root user
 if [ "$(whoami)" != "root" ]; then
@@ -91,6 +90,7 @@ else
  WINDOWS_NAME="windows7"
 fi
 
+DISK_IMAGE_NAME="${WINDOWS_NAME}_raw_disk.img"
 CURRENT_DIRECTORY="$PWD"
 SHARED_DIRECTORY="$PWD/shared"
 DOWNLOAD_DIRECTORY="$PWD/downloaded"
