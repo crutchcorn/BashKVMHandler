@@ -367,7 +367,9 @@ or other application using the libvirt API.
   <vcpu>1</vcpu>
   <os>
     <type arch='x86_64' machine='pc-1.0'>hvm</type>
+    <boot dev='cdrom'/>
     <boot dev='hd'/>
+    <bootmenu enable='yes'/>
   </os>
   <features>
     <acpi/>
