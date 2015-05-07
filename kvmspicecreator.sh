@@ -13,7 +13,7 @@
 
 SCRIPT_VERSION="v0.1 (2015-05-07)"
 
-DISK_IMAGE_NAME="windows_7_raw_disk.img"
+DISK_IMAGE_NAME=${WINDOWS_NAME}"_raw_disk.img"
 
 # check for root user
 if [ "$(whoami)" != "root" ]; then
@@ -78,7 +78,7 @@ fi
 
 if [ -e "$DISK_IMAGE_NAME" ];then
  diskSize=$(du -ks "$DISK_IMAGE_NAME" | sed 's|\s.*||')
- if [ $diskSize -gt 1000000 ] && [ -e /etc/libvirt/qemu/windows_7_sp1.xml ];then
+ if [ $diskSize -gt 1000000 ] && [ -e /etc/libvirt/qemu/${WINDOWS_NAME}.xml ];then
   echo "Seems that Windows is already installed in a virtual machine."
   echo "Checks are ignored."
   NO_CHECKS="true"
@@ -88,7 +88,7 @@ fi
 if [ $# -gt 2 ] && [ "$3" != "no" ];then
  WINDOWS_NAME="$3"
 else
- WINDOWS_NAME="windows7.iso"
+ WINDOWS_NAME="windows7"
 fi
 
 CURRENT_DIRECTORY="$PWD"
@@ -276,19 +276,14 @@ function checkDownloadedFile() {
 
 function download() {
  downloadURL="$1"
- sha1Sum="$2"
- if [ -z "$2" ];then
-  sha1Sum="-"
- fi
 
  if [ "${downloadURL:0:4}" != "http" ];then
-  WINDOWS_NAME="$downloadURL"
   downloadURL="${URL_FOR_WINDOWS_ISOS}${downloadURL}"
  fi
  downloadName=$(echo "$downloadURL" | sed 's|.*/\([^/]*\)|\1|')
 
  if [ -e "$downloadName" ];then
-  checkDownloadedFile "$downloadURL" "$downloadName" "$sha1Sum"
+  checkDownloadedFile "$downloadURL" "$downloadName" 
   return
  fi
 
@@ -300,20 +295,18 @@ function download() {
   exit 1
  fi
 
- checkDownloadedFile "$downloadURL" "$downloadName" "$sha1Sum"
+ checkDownloadedFile "$downloadURL" "$downloadName"
 }
 
 
 # download all files necessary to create the virtual machine with paravirtualized drivers
 
-function downloadAndCheckFiles() {
- rm -f checksums.txt
-
+function downloadFiles() {
  # spice tools for Windows with virtio drivers
  download https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/latest-virtio/virtio-win.iso
 
  # Driver Signature Enforcement Overrider (used for QXL driver)
- download http://files.ngohq.com/ngo/dseo/dseo13b.exe d7922f2dcb47a37cf798dffb824f840ddef7ffd5
+ download http://files.ngohq.com/ngo/dseo/dseo13b.exe
 
  # Spice guest tools for Windows 7
  download http://www.spice-space.org/download/binaries/spice-guest-tools/spice-guest-tools-0.100.exe
@@ -358,16 +351,16 @@ EOF
 function createWindows7InstallationConfiguration() {
  vmUUID=$(uuidgen)
 
- cat > /etc/libvirt/qemu/windows_7_sp1.xml << EOF
+ cat > /etc/libvirt/qemu/${WINDOWS_NAME}.xml << EOF
 <!--
 WARNING: THIS IS AN AUTO-GENERATED FILE. CHANGES TO IT ARE LIKELY TO BE
 OVERWRITTEN AND LOST. Changes to this xml configuration should be made using:
-  virsh edit windows_7_sp1
+  virsh edit ${WINDOWS_NAME}
 or other application using the libvirt API.
 -->
 
 <domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
-  <name>windows_7_sp1</name>
+  <name>${WINDOWS_NAME}</name>
   <uuid>${vmUUID}</uuid>
   <memory>${virtualMachineRAMSizeInMB}000</memory>
   <currentMemory>${virtualMachineRAMSizeInMB}000</currentMemory>
@@ -470,7 +463,7 @@ or other application using the libvirt API.
 EOF
 
   # create backup of the file in case virt-manager destroys the configuration:
-  cp /etc/libvirt/qemu/windows_7_sp1.xml backup.windows_7_sp1.xml
+  cp /etc/libvirt/qemu/${WINDOWS_NAME}.xml backup.${WINDOWS_NAME}.xml
 }
 
 
@@ -570,7 +563,7 @@ EOF
  cat > configureWindowsAsAdministrator.bat <<EOF
 echo 192.168.123.1 host >> C:\Windows\System32\drivers\etc\hosts
 F:\dseo13b.exe
-F:\spice-guest-tools-0.52.exe
+F:\spice-guest-tools-0.100.exe
 REM F:\setStaticIPAddress.bat
 EOF
 
@@ -625,15 +618,15 @@ function configureIPTables() {
 
 function startVirtualMachine() {
 
- virsh list --inactive | grep -q "windows_7_sp1"
+ virsh list --inactive | grep -q "${WINDOWS_NAME}"
  if [ $? -eq 0 ];then
-  virsh start windows_7_sp1
+  virsh start ${WINDOWS_NAME}
   sleep 1
  else
   echo "VM is already running."
  fi
 
- while [ ! -z "$(virsh list --inactive | grep windows_7_sp1)" ];do
+ while [ ! -z "$(virsh list --inactive | grep ${WINDOWS_NAME})" ];do
   echo "Waiting for virtual machine to start."
   sleep 0.5
  done
@@ -713,7 +706,7 @@ if [ ! -d downloaded ];then
 fi
 cd downloaded
 
-downloadAndCheckFiles
+downloadFiles
 
 # create CD with additional tools
 if [ ! -e windowsShared.iso ];then
