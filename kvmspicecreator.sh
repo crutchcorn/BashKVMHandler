@@ -414,9 +414,13 @@ or other application using the libvirt API.
       <address type='pci' domain='0x0000' bus='0x00' slot='0x07' function='0x0'/>
     </controller>
     <interface type='network'>
-      <mac address='52:54:00:d8:50:f2'/>
-      <source network='default'/>
+      <mac address='52:54:00:12:34:56'/>
+      <source network='private'/>
       <model type='virtio'/>
+      <!-- avoid spoofing with predefined filter, see ebtables -t nat -L -->
+      <filterref filter='clean-traffic'>
+        <parameter name='IP' value='192.168.123.88'/>
+      </filterref>
       <address type='pci' domain='0x0000' bus='0x00' slot='0x03' function='0x0'/>
     </interface>
     <serial type='pty'>
@@ -466,6 +470,29 @@ EOF
   cp /etc/libvirt/qemu/${WINDOWS_NAME}.xml backup.${WINDOWS_NAME}.xml
 }
 
+
+function createNetworkConfiguration() {
+ # create backup of private virtual network configuration if it exists
+ if [ -e /etc/libvirt/qemu/networks/private.xml ];then
+  echo "Created backup of /etc/libvirt/qemu/networks/private.xml"
+  echo "in /etc/libvirt/qemu/networks/private.xml.backup"
+  mv /etc/libvirt/qemu/networks/private.xml /etc/libvirt/qemu/networks/private.xml.backup
+ fi
+
+ # configure a private network with fixed DHCP address
+ cat > /etc/libvirt/qemu/networks/private.xml <<EOF
+<network>
+  <name>private</name>
+  <bridge name="virbr2" />
+  <ip address="192.168.123.1" netmask="255.255.255.0">
+    <dhcp>
+      <range start="192.168.123.2" end="192.168.123.254" />
+      <host mac="52:54:00:12:34:56" name="windows" ip="192.168.123.88" />
+    </dhcp>
+  </ip>
+</network>
+EOF
+}
 
 function configureFTP() {
  # create backup of existing ftp configuration
@@ -620,6 +647,7 @@ function startVirtualMachine() {
 
  virsh list --inactive | grep -q "${WINDOWS_NAME}"
  if [ $? -eq 0 ];then
+  virsh net-start private
   virsh start ${WINDOWS_NAME}
   sleep 1
  else
@@ -668,13 +696,22 @@ function createVirtualMachine() {
 
  createUSB2Configuration
 
+ # stop the private virtual network if it exists
+ virsh net-destroy private 2> /dev/null
+
  # disable dnsmasq
  #killall dnsmasq
 
  # restart virt daemon to read the configuration
  service libvirt-bin stop
  createWindows7InstallationConfiguration
+ createNetworkConfiguration
  service libvirt-bin start
+
+ # start the private network
+ if [ ! -z "$(virsh net-list --inactive | grep "^private")" ];then
+  virsh net-start private
+ fi
 
  sleep 2
 
