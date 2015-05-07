@@ -29,6 +29,8 @@ if [ $# -lt 2 ];then
  echo
  echo "Version: $SCRIPT_VERSION"
  echo
+ echo "You must have a valid Windows XP and above ISO in the same folder as this script"
+ echo
  echo "Usage:"
  echo "$0 <VM disk size in GB> <VM RAM size in MB> [Windows ISO name] [no checks]"
  echo
@@ -38,11 +40,11 @@ if [ $# -lt 2 ];then
  echo "example without checksum calculation of the downloaded files and without check for required Linux packages:"
  echo "$0 20 1024 no checks"
  echo
- echo "example with special Windows version (e.g. Windows 7 Professional 64 Bit with Service Pack 1 English):"
- echo "$0 20 1024 X17-24281.iso"
+ echo "example with any other iso name than windows7.iso:"
+ echo "$0 20 1024 nameofwindows.iso"
  echo
- echo "example without checks and with special Windows version (e.g. Windows 7 Professional 64 Bit with Service Pack 1 English):"
- echo "$0 20 1024 X17-24281.iso no checks"
+ echo "example without checks and an iso name with something other than windows7.iso:"
+ echo "$0 20 1024 nameofwindows.iso no checks"
  echo
  exit 2
 fi
@@ -52,14 +54,6 @@ echo "DISCLAIMER: Please read the license agreement from Microsoft."
 echo "            Only one virtual machine with the correct license"
 echo "            is allowed (read the EULA)."
 echo
-
-# check for 64 bit system
-if [ "$(uname -i)" != "x86_64" ]; then
- echo "This script was developed for a x86 64 bit Linux system with a Windows 64 bit virtual machine."
- echo "You can adapt the script to your own needs."
- echo "Bye."
- exit 3
-fi
 
 # check for tested Linux distribution
 grep -q "14\.04" /etc/issue
@@ -94,7 +88,7 @@ fi
 if [ $# -gt 2 ] && [ "$3" != "no" ];then
  WINDOWS_NAME="$3"
 else
- WINDOWS_NAME=""
+ WINDOWS_NAME="windows7.iso"
 fi
 
 CURRENT_DIRECTORY="$PWD"
@@ -401,7 +395,7 @@ or other application using the libvirt API.
     </disk>
     <disk type='file' device='cdrom'>
       <driver name='qemu' type='raw' cache='none'/>
-      <source file='${DOWNLOAD_DIRECTORY}/../windows7.iso'/>
+      <source file='${DOWNLOAD_DIRECTORY}/../${WINDOWS_NAME}.iso'/>
       <target dev='hda' bus='ide'/>
       <readonly/>
       <address type='drive' controller='0' bus='0' unit='0'/>
