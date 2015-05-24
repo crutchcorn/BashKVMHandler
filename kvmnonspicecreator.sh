@@ -156,7 +156,7 @@ function checkPackage() {
   echo "Package $package is not installed."
   echo "Trying to install:"
   if [ "$package" == "libusbredir" ];then
-   apt-get install -y qemu-kvm qemu qemu-common qemu-utils 
+   apt-get install -y qemu-kvm qemu qemu-common qemu-utils libvirt-bin ubuntu-vm-builder bridge-utils
    ln -s /etc/apparmor.d/usr.sbin.libvirtd /etc/apparmor.d/disable/
    service apparmor restart
 
@@ -181,7 +181,7 @@ function checkUbuntuPackages() {
  # virt-manager - GUI for comfortable VM handling
  checkPackage "virt-manager"
 
- # virt-viewer - alternative to spicy
+ # virt-viewer
  checkPackage "virt-viewer"
 
  # wmctrl - window manager control to maximize window
@@ -352,13 +352,6 @@ or other application using the libvirt API.
       <readonly/>
       <address type='drive' controller='0' bus='0' unit='1'/>
     </disk>
-    <disk type='file' device='cdrom'>
-      <driver name='qemu' type='raw' cache='none'/>
-      <source file='${DOWNLOAD_DIRECTORY}/windowsShared.iso'/>
-      <target dev='hdc' bus='ide'/>
-      <readonly/>
-      <address type='drive' controller='0' bus='1' unit='0'/>
-    </disk>
     <controller type='ide' index='0'>
       <address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x1'/>
     </controller>
@@ -366,13 +359,9 @@ or other application using the libvirt API.
       <address type='pci' domain='0x0000' bus='0x00' slot='0x07' function='0x0'/>
     </controller>
     <interface type='network'>
-      <mac address='52:54:00:12:34:56'/>
-      <source network='private'/>
+      <mac address='52:54:00:01:af:b1'/>
+      <source network='default'/>
       <model type='virtio'/>
-      <!-- avoid spoofing with predefined filter, see ebtables -t nat -L -->
-      <filterref filter='clean-traffic'>
-        <parameter name='IP' value='192.168.123.88'/>
-      </filterref>
       <address type='pci' domain='0x0000' bus='0x00' slot='0x03' function='0x0'/>
     </interface>
     <serial type='pty'>
@@ -381,13 +370,10 @@ or other application using the libvirt API.
     <console type='pty'>
       <target type='serial' port='0'/>
     </console>
-    <channel type='spicevmc'>
-      <target type='virtio' name='com.redhat.spice.0'/>
-      <address type='virtio-serial' controller='0' bus='0' port='1'/>
-    </channel>
     <input type='tablet' bus='usb'/>
     <input type='mouse' bus='ps2'/>
-    <graphics type='spice' autoport='yes'/>
+    <input type='keyboard' bus='ps2'/>
+    <graphics type='vnc' port='-1' autoport='yes'/>
     <sound model='ich6'>
       <address type='pci' domain='0x0000' bus='0x00' slot='0x04' function='0x0'/>
     </sound>
@@ -422,179 +408,6 @@ EOF
   cp /etc/libvirt/qemu/${WINDOWS_NAME}.xml backup.${WINDOWS_NAME}.xml
 }
 
-
-function createNetworkConfiguration() {
- # create backup of private virtual network configuration if it exists
- if [ -e /etc/libvirt/qemu/networks/private.xml ];then
-  echo "Created backup of /etc/libvirt/qemu/networks/private.xml"
-  echo "in /etc/libvirt/qemu/networks/private.xml.backup"
-  mv /etc/libvirt/qemu/networks/private.xml /etc/libvirt/qemu/networks/private.xml.backup
- fi
-
- # configure a private network with fixed DHCP address
- cat > /etc/libvirt/qemu/networks/private.xml <<EOF
-<network>
-  <name>private</name>
-  <bridge name="virbr2" />
-  <ip address="192.168.123.1" netmask="255.255.255.0">
-    <dhcp>
-      <range start="192.168.123.2" end="192.168.123.254" />
-      <host mac="52:54:00:12:34:56" name="windows" ip="192.168.123.88" />
-    </dhcp>
-  </ip>
-</network>
-EOF
-}
-
-function configureFTP() {
- # create backup of existing ftp configuration
- if [ -e /etc/vsftpd.conf.backup ];then
-  if [ -z "$(service vsftpd status | grep start)" ];then
-   echo "FTP Daemon is not running. Trying to start it."
-   service vsftpd restart
-  fi
-  return
- fi
-
- # backup existing configuration
- cp /etc/vsftpd.conf /etc/vsftpd.conf.backup
-
- # create anonymous ftp configuration with read and write support
- cat > /etc/vsftpd.conf <<EOF
-listen=YES
-download_enable=YES
-write_enable=YES
-anon_root=${SHARED_DIRECTORY}
-anonymous_enable=YES
-anon_upload_enable=YES
-anon_mkdir_write_enable=YES
-anon_other_write_enable=YES
-anon_max_rate=100000000
-listen_address=192.168.123.1
-listen_port=21
-anon_umask=000
-pasv_enable=Yes
-pasv_max_port=10100
-pasv_min_port=10090
-EOF
-
- # restart the service
- service vsftpd restart
-}
-
-function createRegistryEntries() {
- cat > windows_registry.txt <<EOF
-Windows Registry Editor Version 5.00
-
-[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts]
-"Segoe UI (TrueType)"=""
-"Segoe UI Bold (TrueType)"=""
-"Segoe UI Bold Italic (TrueType)"=""
-"Segoe UI Italic (TrueType)"=""
-"Segoe UI Light (TrueType)"=""
-"Segoe UI Semibold (TrueType)"=""
-"Segoe UI Symbol (TrueType)"=""
-
-[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\FontSubstitutes]
-"Segoe UI"="Tahoma"
-"Segoe UI Light"="Tahoma"
-"Segoe UI Semibold"="Tahoma"
-"Segoe UI Symbol"="Tahoma"
-
-; automatically log in
-; [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon]
-; "AutoAdminLogon"="1"
-; "DefaultDomainName"="COMPUTER"
-; "DefaultPassword"="password"
-
-; disable font smoothing to get sharp fonts
-[HKEY_USERS\.DEFAULT\Control Panel\Desktop]
-"FontSmoothing"="0"
-"FontSmoothingType"=dword:00000001
-
-[HKEY_CURRENT_USER\Control Panel\Desktop]
-"FontSmoothing"="0"
-"FontSmoothingType"=dword:00000001
-
-; show hidden files
-[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced]
-"Hidden"=dword:00000001
-"SuperHidden"=dword:00000001
-"ShowSuperHidden"=dword:00000001
-
-; show file extensions in Explorer
-[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced]
-"HideFileExt"=dword:00000000
-
-; single click in Explorer
-[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer]
-"ShellState"=hex:24,00,00,00,13,a8,00,00,00,00,00,00,00,00,00,00,00,00,00,00,01,00,00,00,12,00,00,00,00,00,00,00,22,00,00,00
-EOF
-
- printf "\xFF\xFE" > windows_registry.reg
- sed 's/$/\r/' windows_registry.txt | iconv -f UTF-8 -t UTF-16LE >> windows_registry.reg
-
- cat > configureWindows.bat <<EOF
-regedit.exe F:\windows_registry.reg
-control userpasswords2
-EOF
-
- cat > configureWindowsAsAdministrator.bat <<EOF
-echo 192.168.123.1 host >> C:\Windows\System32\drivers\etc\hosts
-F:\dseo13b.exe
-F:\spice-guest-tools-0.100.exe
-REM F:\setStaticIPAddress.bat
-EOF
-
- cat > setStaticIPAddress.bat <<EOF
-@Echo Off
-For /f "skip=4 tokens=4*" %%a In ('NetSh Interface IPv4 Show Interfaces') Do (
-    Call :UseNetworkAdapter %%a "%%b"
-)
-Exit /B
-
-:UseNetworkAdapter
-:: %1 = State
-:: %2 = Name (quoted); %~2 = Name (unquoted)
-    :: Do your stuff here, for example:
-    echo %2
-    netsh interface ip set address name=%2 source=static addr=192.168.123.2 mask=255.255.255.0 gateway=192.168.123.1 gwmetric=0
-Exit /B
-EOF
-}
-
-function configureIPTables() {
- checkIPTablesRules=$(iptables -nvL INPUT | head -n 3 | tail -n 1 | grep "icmp.*virbr2.*IP range 192.168.123.1")
-
- # don't insert rules again if already inserted
- if [ ! -z "$checkIPTablesRules" ];then
-  return
- fi
-
- # drop everything else
- iptables -I INPUT -i virbr2 -j DROP
- #iptables -I INPUT -i virbr2 -j LOG
-
- # accept established connections
- iptables -I INPUT -p tcp -m state --state RELATED,ESTABLISHED -j ACCEPT
-
- # accept ftp to the host machine for file exchange (something like a shared folder)
- iptables -I INPUT -i virbr2 -p tcp --dport 21 -m iprange --dst-range 192.168.123.1-192.168.123.254 -j ACCEPT
- iptables -I INPUT -i virbr2 -p tcp --dport 10090:10100 -m iprange --dst-range 192.168.123.1-192.168.123.254 -j ACCEPT
-
- # allow dhcp
- iptables -I INPUT -i virbr2 -p udp --dport 67 -j ACCEPT
-
- # allow DNS queries
- #iptables -I INPUT -i virbr2 -p udp --dport 53 -m iprange --dst-range 192.168.123.1-192.168.123.254 -j ACCEPT
-
- # allow icmp/ping in the virtual network
- iptables -I INPUT -i virbr2 -p icmp -m iprange --dst-range 192.168.123.1-192.168.123.254 -j ACCEPT
-
- # iptables -I INPUT -i virbr2 -m iprange --dst-range 192.168.123.1-192.168.123.254 -j ACCEPT
-
-}
-
 function startVirtualMachine() {
 
  virsh list --inactive | grep -q "${WINDOWS_NAME}"
@@ -611,31 +424,7 @@ function startVirtualMachine() {
   sleep 0.5
  done
 
- spicy -h localhost -p 5900 > /dev/null 2>&1 &
-
- while [ -z "$(wmctrl -l | grep 'spice display 0')" ];do
-  echo "Waiting for spicy window to appear."
-  sleep 0.5
- done
-
- # wait for the window
- sleep 1
-
- # start spicy window maximized
-
- if [ "$1" == "max" ];then
-  # maximize spicy window
-  wmctrl -r "spice display 0" -b add,maximized_vert,maximized_horz
- else
-  wmctrl -r "spice display 0" -e 1,0,0,"$1","$2"
- fi
-
- # focus the spicy window
- wmctrl -a "spice display 0"
-
- # add iptables rules
- configureIPTables
-
+virt-viewer -f ${WINDOWS_NAME} > /dev/null 2>&1 &
  # start ftp for shared folder
  configureFTP
 }
@@ -657,15 +446,7 @@ function createVirtualMachine() {
  # restart virt daemon to read the configuration
  service libvirt-bin stop
  createWindows7InstallationConfiguration
- createNetworkConfiguration
  service libvirt-bin start
-
- # start the private network
- if [ ! -z "$(virsh net-list --inactive | grep "^private")" ];then
-  virsh net-start private
- fi
-
- sleep 2
 
  startVirtualMachine "max"
 
@@ -696,12 +477,6 @@ fi
 cd downloaded
 
 downloadFiles
-
-# create CD with additional tools
-if [ ! -e windowsShared.iso ];then
- createRegistryEntries
- mkisofs -J -joliet-long -o windowsShared.iso setStaticIPAddress.bat configureWindowsAsAdministrator.bat configureWindows.bat windows_registry.reg dseo13b.exe spice-guest-tools-0.100.exe > /dev/null 2>&1
-fi
 
 cd ..
 
