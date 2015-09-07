@@ -31,19 +31,21 @@ if [ $# -lt 2 ];then
  echo "You must have a valid Windows XP and above ISO in the same folder as this script"
  echo
  echo "Usage:"
- echo "$0 <VM disk size in GB> <VM RAM size in MB> [Windows ISO name] [no checks]"
+ echo "$0 <VM disk size in GB> <VM RAM size in MB> [Windows ISO name without .iso] [no checks]"
  echo
- echo "example for a virtual machine with 20 GB virtual disk size and 1GB RAM:"
+ echo "example for a virtual machine with 20 GB virtual disk size and 1GB RAM and ISO of windows7.iso:"
  echo "$0 20 1024"
  echo
  echo "example without checksum calculation of the downloaded files and without check for required Linux packages:"
  echo "$0 20 1024 no checks"
  echo
  echo "example with any other iso name than windows7.iso:"
- echo "$0 20 1024 nameofwindows.iso"
+ echo "$0 20 1024 nameofwindowsiso"
+ echo
+ echo "Please keep in mind that .iso will be appended to your filename so you do not need to type in nameofwindowsiso.iso"
  echo
  echo "example without checks and an iso name with something other than windows7.iso:"
- echo "$0 20 1024 nameofwindows.iso no checks"
+ echo "$0 20 1024 nameofwindowsiso no checks"
  echo
  exit 2
 fi
